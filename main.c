@@ -23,6 +23,18 @@ struct egl_ctx
 	EGLint height;
 };
 
+struct gl_program_0
+{
+	GLuint program;
+	GLint a_position;
+	GLint a_color;
+};
+
+struct gl_ctx
+{
+	struct gl_program_0 *program_0;
+};
+
 EGLint egl_init(struct egl_ctx *ctx)
 {
 	ctx->native_display = egl_native_display_open();
@@ -102,7 +114,7 @@ GLuint gl_load_shader(GLenum type, const GLchar **source)
 	return shader;
 }
 
-void gl_init()
+void gl_init(struct gl_ctx *ctx)
 {
 	 static const GLchar *vertex_shader_src[] =
 	 {
@@ -132,17 +144,20 @@ void gl_init()
 	GLuint fragment_shader = gl_load_shader(GL_FRAGMENT_SHADER, (const GLchar **)fragment_shader_src);
 	assert(fragment_shader != -1);
 
-	GLuint program = glCreateProgram();
+	static struct gl_program_0 p0;
+	ctx->program_0 = &p0;
 
-	glAttachShader(program, vertex_shader);
-	glAttachShader(program, fragment_shader);
+	p0.program = glCreateProgram();
 
-	glLinkProgram(program);
+	glAttachShader(p0.program, vertex_shader);
+	glAttachShader(p0.program, fragment_shader);
+
+	glLinkProgram(p0.program);
 	GLint linked;
-	glGetProgramiv(program, GL_LINK_STATUS, &linked);
+	glGetProgramiv(p0.program, GL_LINK_STATUS, &linked);
 	assert(linked);
 
-	glUseProgram(program);
+	glUseProgram(p0.program);
 
 	static const GLfloat a_positions[] = {
 		-1.0,  1.0,  1.0,  1.0,
@@ -154,38 +169,41 @@ void gl_init()
 		0.0, 0.0, 1.0, 1.0, 1.0, 0.0,
 	};
 
-	GLint a_position = glGetAttribLocation(program, "a_position");
-	glVertexAttribPointer(a_position, 2, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)&a_positions[0]);
-	glEnableVertexAttribArray(a_position);
+	p0.a_position = glGetAttribLocation(p0.program, "a_position");
+	glVertexAttribPointer(p0.a_position, 2, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)&a_positions[0]);
 
-	GLint a_color = glGetAttribLocation(program, "a_color");
-	glVertexAttribPointer(a_color, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)&a_colors[0]);
-	glEnableVertexAttribArray(a_color);
-
+	p0.a_color = glGetAttribLocation(p0.program, "a_color");
+	glVertexAttribPointer(p0.a_color, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)&a_colors[0]);
 }
 
-void gl_render()
+void gl_render(struct gl_ctx *ctx)
 {
-    glClearColor(0.5, 0.5, 0.5, 1.0);
+    glClearColor(0, 0, 0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    {
+	    glUseProgram(ctx->program_0->program);
+		glEnableVertexAttribArray(ctx->program_0->a_position);
+		glEnableVertexAttribArray(ctx->program_0->a_color);
+	    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    }
 }
 
 int main(int argc, char *argv[])
 {
-	struct egl_ctx ctx = { 0 };
-	EGLint res = egl_init(&ctx);
+	struct egl_ctx egl_ctx = { 0 };
+	EGLint res = egl_init(&egl_ctx);
 	assert(res);
 
 	printf(
 		"EGL vendor: %s\n"
 		"EGL version: %s\n",
-		eglQueryString(ctx.display, EGL_VENDOR),
-		eglQueryString(ctx.display, EGL_VERSION)
+		eglQueryString(egl_ctx.display, EGL_VENDOR),
+		eglQueryString(egl_ctx.display, EGL_VERSION)
 	);
 
-	gl_init();
+	struct gl_ctx gl_ctx = { 0 };
+	gl_init(&gl_ctx);
 
 	struct timespec t1, t2;
 	long double el = 0;
@@ -193,13 +211,13 @@ int main(int argc, char *argv[])
 	EGLint quit = 0;
 	while (!quit)
 	{
-		gl_render();
-		eglSwapBuffers(ctx.display, ctx.surface);
+		gl_render(&gl_ctx);
+		eglSwapBuffers(egl_ctx.display, egl_ctx.surface);
 
 		clock_gettime(CLOCK_MONOTONIC, &t1);
 		do
 		{
-			if (!egl_native_window_process_events(ctx.native_display, ctx.native_window))
+			if (!egl_native_window_process_events(egl_ctx.native_display, egl_ctx.native_window))
 			{
 				quit = EGL_TRUE;
 				break;
