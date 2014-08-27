@@ -137,6 +137,15 @@ EGLBoolean egl_native_window_process_events(EGLNativeDisplayType display, EGLNat
 				if (evt.xconfigure.window == _window)
 					egl_native_window_resize(evt.xconfigure.width, evt.xconfigure.height);
 				break;
+			case KeyPress:
+				{
+					XLookupKeysym(&evt.xkey, 0);
+					char buf[8];
+					XLookupString(&evt.xkey, buf, sizeof(buf), 0, 0);
+					if (buf[0] == 27)
+						return EGL_FALSE;
+				}
+				break;
 /*
 			case MotionNotify:
 				if (evt.xmotion.window == _window)

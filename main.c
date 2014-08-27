@@ -35,9 +35,6 @@ EGLint egl_init(struct egl_ctx *ctx)
 	EGLBoolean res = eglInitialize(ctx->display, &major, &minor);
 	assert(eglGetError() == EGL_SUCCESS);
 
-	fprintf(stdout, "EGL v%d.%d\n", major, minor);
-	fflush(stdout);
-
 	eglBindAPI(EGL_OPENGL_ES_API);
 	assert(eglGetError() == EGL_SUCCESS);
 
@@ -181,20 +178,25 @@ int main(int argc, char *argv[])
 	EGLint res = egl_init(&ctx);
 	assert(res);
 
+	printf(
+		"EGL vendor: %s\n"
+		"EGL version: %s\n",
+		eglQueryString(ctx.display, EGL_VENDOR),
+		eglQueryString(ctx.display, EGL_VERSION)
+	);
+
 	gl_init();
 
 	struct timespec t1, t2;
+	long double el = 0;
 
 	EGLint quit = 0;
 	while (!quit)
 	{
 		gl_render();
-
 		eglSwapBuffers(ctx.display, ctx.surface);
 
 		clock_gettime(CLOCK_MONOTONIC, &t1);
-		long double el = 0;
-
 		do
 		{
 			if (!egl_native_window_process_events(ctx.native_display, ctx.native_window))
