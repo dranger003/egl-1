@@ -10,6 +10,9 @@ void					egl_native_display_close(
 
 EGLNativeWindowType		egl_native_window_create(
 							EGLNativeDisplayType display,
+							const char *name,
+							EGLint x,
+							EGLint y,
 							EGLint width,
 							EGLint height,
 							EGLint visual_id
@@ -22,11 +25,6 @@ void					egl_native_window_destroy(
 void					egl_native_window_resize(
 							EGLint width,
 							EGLint height
-						);
-void					egl_native_window_mouse_move(
-							EGLint x,
-							EGLint y,
-							EGLBoolean left_button
 						);
 EGLBoolean				egl_native_window_process_events(
 							EGLNativeDisplayType display,

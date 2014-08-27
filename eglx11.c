@@ -12,7 +12,14 @@ void egl_native_display_close(EGLNativeDisplayType display)
 	XCloseDisplay((Display *)display);
 }
 
-EGLNativeWindowType egl_native_window_create(EGLNativeDisplayType display, EGLint width, EGLint height, EGLint visual_id)
+EGLNativeWindowType egl_native_window_create(
+	EGLNativeDisplayType display,
+	const char *name,
+	EGLint x,
+	EGLint y,
+	EGLint width,
+	EGLint height,
+	EGLint visual_id)
 {
 	Display *_display = (Display *)display;
 
@@ -49,7 +56,6 @@ EGLNativeWindowType egl_native_window_create(EGLNativeDisplayType display, EGLin
 			StructureNotifyMask,
 	};
 
-	int x = 20, y = 20;
 	Window window = XCreateWindow(
 		display,
 		root_window,
@@ -67,6 +73,25 @@ EGLNativeWindowType egl_native_window_create(EGLNativeDisplayType display, EGLin
 
 	Atom atom = XInternAtom(_display, "WM_DELETE_WINDOW", True);
 	XSetWMProtocols(_display, window, &atom, 1);
+
+	XSizeHints hints =
+	{
+		.flags = USSize | USPosition,
+		.x = x,
+		.y = y,
+		.width = width,
+		.height = height,
+	};
+	XSetStandardProperties(
+		_display,
+		window,
+		name,
+		name,
+		None,
+		(char **)0,
+		0,
+		&hints
+	);
 
 	XMapWindow(_display, window);
 
@@ -91,10 +116,6 @@ void egl_native_window_resize(EGLint width, EGLint height)
 	glViewport(0, 0, width, height);
 }
 
-void egl_native_window_mouse_move(EGLint x, EGLint y, EGLBoolean left_button)
-{
-}
-
 EGLBoolean egl_native_window_process_events(EGLNativeDisplayType display, EGLNativeWindowType window)
 {
 	Display *_display = (Display *)display;
@@ -116,10 +137,13 @@ EGLBoolean egl_native_window_process_events(EGLNativeDisplayType display, EGLNat
 				if (evt.xconfigure.window == _window)
 					egl_native_window_resize(evt.xconfigure.width, evt.xconfigure.height);
 				break;
+/*
 			case MotionNotify:
 				if (evt.xmotion.window == _window)
-					egl_native_window_mouse_move(evt.xmotion.x, evt.xmotion.y, (evt.xmotion.state & Button1Mask) != 0);
+					// evt.xmotion.x, evt.xmotion.y
+					// evt.xmotion.state & Button1Mask
 				break;
+*/
 			default:
 				break;
 		}
