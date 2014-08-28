@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <time.h>
+#include <inttypes.h>
 
 #include <X11/Xutil.h>
 #include "eglnative.h"
@@ -205,8 +206,8 @@ int main(int argc, char *argv[])
 	struct gl_ctx gl_ctx = { 0 };
 	gl_init(&gl_ctx);
 
-	struct timespec t1, t2;
-	long double el = 0;
+	struct timespec t1, t2, t4;
+	uint32_t frame_count = 0;
 
 	EGLint quit = 0;
 	while (!quit)
@@ -214,19 +215,43 @@ int main(int argc, char *argv[])
 		gl_render(&gl_ctx);
 		eglSwapBuffers(egl_ctx.display, egl_ctx.surface);
 
-		clock_gettime(CLOCK_MONOTONIC, &t1);
+#ifndef _VSYNC
 		do
 		{
+#endif
 			if (!egl_native_window_process_events(egl_ctx.native_display, egl_ctx.native_window))
 			{
 				quit = EGL_TRUE;
 				break;
 			}
+#ifndef _VSYNC
+			const static struct timespec t3 = { .tv_sec = 0, .tv_nsec = 1000000 };
+			nanosleep(&t3, 0);
 
 			clock_gettime(CLOCK_MONOTONIC, &t2);
-			el = t2.tv_sec - t1.tv_sec + (t2.tv_nsec - t1.tv_nsec) / NSEC;
-		} while (el < 1 / FPS);
+		} while (t2.tv_sec - t1.tv_sec + (t2.tv_nsec - t1.tv_nsec) / NSEC < 1 / FPS);
+#endif
+
+		t2 = t1;
+		clock_gettime(CLOCK_MONOTONIC, &t1);
+
+		if (frame_count++ > 0)
+		{
+			fprintf(
+				stdout,
+				"\rC: %.9Lf, A: %.9Lf                     ",
+				1 / t1.tv_sec - t2.tv_sec + (t1.tv_nsec - t2.tv_nsec) / NSEC,
+				frame_count / (t1.tv_sec - t4.tv_sec + (t1.tv_nsec - t4.tv_nsec) / NSEC)
+			);
+			fflush(stdout);
+		}
+		else
+		{
+			t4 = t1;
+		}
 	}
+
+	printf("\n");
 
 	return 0;
 }
