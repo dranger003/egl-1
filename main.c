@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <time.h>
 #include <inttypes.h>
+#include <string.h>
 
 #include <X11/Xutil.h>
 #include "eglnative.h"
@@ -218,7 +219,7 @@ int main(int argc, char *argv[])
 	struct gl_ctx gl_ctx = { 0 };
 	gl_init(&gl_ctx);
 
-	struct timespec t1, t2, t4;
+	struct timespec t1, t2, t3;
 	uint32_t frame_count = 0;
 
 	EGLint quit = 0;
@@ -237,11 +238,12 @@ int main(int argc, char *argv[])
 				break;
 			}
 #ifndef _VSYNC
-			const static struct timespec t3 = { .tv_sec = 0, .tv_nsec = 1000000 };
-			nanosleep(&t3, 0);
+			const static struct timespec t4 = { .tv_sec = 0, .tv_nsec = 1000000 };
+			nanosleep(&t4, 0);
 
 			clock_gettime(CLOCK_MONOTONIC, &t2);
-		} while (t2.tv_sec - t1.tv_sec + (t2.tv_nsec - t1.tv_nsec) / NSEC < 1 / FPS);
+			t2.tv_nsec += t4.tv_nsec * 0.7;
+		} while (t2.tv_sec - t1.tv_sec + (t2.tv_nsec - t1.tv_nsec) / NSEC < 1.0L / FPS);
 #endif
 
 		t2 = t1;
@@ -252,14 +254,14 @@ int main(int argc, char *argv[])
 			fprintf(
 				stdout,
 				"\rC: %.9Lf, A: %.9Lf                     ",
-				1 / t1.tv_sec - t2.tv_sec + (t1.tv_nsec - t2.tv_nsec) / NSEC,
-				frame_count / (t1.tv_sec - t4.tv_sec + (t1.tv_nsec - t4.tv_nsec) / NSEC)
+				1 / (t1.tv_sec - t2.tv_sec + (t1.tv_nsec - t2.tv_nsec) / NSEC),
+				frame_count / (t1.tv_sec - t3.tv_sec + (t1.tv_nsec - t3.tv_nsec) / NSEC)
 			);
 			fflush(stdout);
 		}
 		else
 		{
-			t4 = t1;
+			t3 = t1;
 		}
 	}
 
@@ -267,3 +269,4 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
+
