@@ -28,6 +28,8 @@ struct gl_program_0
 	GLuint program;
 	GLint a_position;
 	GLint a_color;
+	GLfloat *a_positions;
+	GLfloat *a_colors;
 };
 
 struct gl_ctx
@@ -159,21 +161,24 @@ void gl_init(struct gl_ctx *ctx)
 
 	glUseProgram(p0.program);
 
-	static const GLfloat a_positions[] = {
+	static GLfloat a_positions[] = {
 		-1.0,  1.0,  1.0,  1.0,
 		-1.0, -1.0,  1.0, -1.0,
 	};
 
-	static const GLfloat a_colors[] = {
+	static GLfloat a_colors[] = {
 		1.0, 0.0, 0.0, 0.0, 1.0, 0.0,
 		0.0, 0.0, 1.0, 1.0, 1.0, 0.0,
 	};
 
+	p0.a_positions = &a_positions[0];
+	p0.a_colors = &a_colors[0];
+
 	p0.a_position = glGetAttribLocation(p0.program, "a_position");
-	glVertexAttribPointer(p0.a_position, 2, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)&a_positions[0]);
+	glVertexAttribPointer(p0.a_position, 2, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)p0.a_positions);
 
 	p0.a_color = glGetAttribLocation(p0.program, "a_color");
-	glVertexAttribPointer(p0.a_color, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)&a_colors[0]);
+	glVertexAttribPointer(p0.a_color, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)p0.a_colors);
 }
 
 void gl_render(struct gl_ctx *ctx)
@@ -183,8 +188,15 @@ void gl_render(struct gl_ctx *ctx)
 
     {
 	    glUseProgram(ctx->program_0->program);
+
+	    GLfloat *p = &ctx->program_0->a_positions[0];
+	    *p -= 0.01;
+	    if (*p < -1)
+	    	*p = 0;
+
 		glEnableVertexAttribArray(ctx->program_0->a_position);
 		glEnableVertexAttribArray(ctx->program_0->a_color);
+	    
 	    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
 }
