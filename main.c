@@ -9,6 +9,9 @@
 
 #include <GLES2/gl2.h>
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #define NSEC	1000000000.0L
 #define FPS		60.0L
 
@@ -34,9 +37,22 @@ struct gl_program_0
 	GLfloat *a_colors;
 };
 
+struct gl_program_1
+{
+	GLuint program;
+};
+
 struct gl_ctx
 {
 	struct gl_program_0 *program_0;
+	struct gl_program_1 *program_1;
+};
+
+struct ft_ctx
+{
+	FT_Library library;
+	FT_Face face;
+	const char * const font_file;
 };
 
 EGLint egl_init(struct egl_ctx *ctx)
@@ -99,7 +115,7 @@ EGLint egl_init(struct egl_ctx *ctx)
 	return EGL_TRUE;
 }
 
-GLuint gl_load_shader(GLenum type, const GLchar **source)
+GLuint gl_compile_shader(GLenum type, const GLchar * const *source)
 {
 	GLuint shader = glCreateShader(type);
 	if (!shader)
@@ -118,69 +134,101 @@ GLuint gl_load_shader(GLenum type, const GLchar **source)
 	return shader;
 }
 
-void gl_init(struct gl_ctx *ctx)
+GLuint gl_create_program(const GLchar * const *vertex_shader_source, const GLchar * const *fragment_shader_source)
 {
-	 static const GLchar *vertex_shader_src[] =
-	 {
-		"attribute vec4 a_position;                           "
-		"attribute vec3 a_color;                              "
-		"varying vec3 v_color;                                "
-		"                                                     "
-		"void main() {                                        "
-		"  v_color = a_color;                                 "
-		"  gl_Position = a_position;                          "
-		"}                                                    "
-	};
-
-	static const GLchar *fragment_shader_src[] =
-	{
-		"precision highp float;                               "
-		"varying vec3 v_color;                                "
-		"                                                     "
-		"void main() {                                        "
-		"  gl_FragColor = vec4(v_color, 1.0);                 "
-		"}                                                    "
-	};
-
-	GLuint vertex_shader = gl_load_shader(GL_VERTEX_SHADER, (const GLchar **)vertex_shader_src);
+	GLuint vertex_shader = gl_compile_shader(GL_VERTEX_SHADER, vertex_shader_source);
 	assert(vertex_shader != -1);
 
-	GLuint fragment_shader = gl_load_shader(GL_FRAGMENT_SHADER, (const GLchar **)fragment_shader_src);
+	GLuint fragment_shader = gl_compile_shader(GL_FRAGMENT_SHADER, fragment_shader_source);
 	assert(fragment_shader != -1);
 
-	static struct gl_program_0 p0;
-	ctx->program_0 = &p0;
+	GLuint program = glCreateProgram();
 
-	p0.program = glCreateProgram();
+	glAttachShader(program, vertex_shader);
+	glAttachShader(program, fragment_shader);
 
-	glAttachShader(p0.program, vertex_shader);
-	glAttachShader(p0.program, fragment_shader);
-
-	glLinkProgram(p0.program);
+	glLinkProgram(program);
 	GLint linked;
-	glGetProgramiv(p0.program, GL_LINK_STATUS, &linked);
+	glGetProgramiv(program, GL_LINK_STATUS, &linked);
 	assert(linked);
 
-	glUseProgram(p0.program);
+	return program;
+}
 
-	static GLfloat a_positions[] = {
-		-1.0,  1.0,  1.0,  1.0,
-		-1.0, -1.0,  1.0, -1.0,
-	};
+void gl_init(struct gl_ctx *ctx)
+{
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	static GLfloat a_colors[] = {
-		1.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-		0.0, 0.0, 1.0, 1.0, 1.0, 0.0,
-	};
+	{
+		static struct gl_program_0 p0;
+		ctx->program_0 = &p0;
 
-	p0.a_positions = &a_positions[0];
-	p0.a_colors = &a_colors[0];
+		static const GLchar * const vertex_shader_source[] =
+		{
+			"attribute vec4 a_position;                           "
+			"attribute vec3 a_color;                              "
+			"varying vec3 v_color;                                "
+			"                                                     "
+			"void main() {                                        "
+			"  v_color = a_color;                                 "
+			"  gl_Position = a_position;                          "
+			"}                                                    "
+		};
 
-	p0.a_position = glGetAttribLocation(p0.program, "a_position");
-	glVertexAttribPointer(p0.a_position, 2, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)p0.a_positions);
+		static const GLchar * const fragment_shader_source[] =
+		{
+			"precision highp float;                               "
+			"varying vec3 v_color;                                "
+			"                                                     "
+			"void main() {                                        "
+			"  gl_FragColor = vec4(v_color, 1.0);                 "
+			"}                                                    "
+		};
 
-	p0.a_color = glGetAttribLocation(p0.program, "a_color");
-	glVertexAttribPointer(p0.a_color, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)p0.a_colors);
+		p0.program = gl_create_program(vertex_shader_source, fragment_shader_source);
+
+		static GLfloat a_positions[] = {
+			-1.0,  1.0,  1.0,  1.0,
+			-1.0, -1.0,  1.0, -1.0,
+		};
+
+		static GLfloat a_colors[] = {
+			1.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+			0.0, 0.0, 1.0, 1.0, 1.0, 0.0,
+		};
+
+		p0.a_position = glGetAttribLocation(p0.program, "a_position");
+		p0.a_color = glGetAttribLocation(p0.program, "a_color");
+
+		p0.a_positions = &a_positions[0];
+		p0.a_colors = &a_colors[0];
+	}
+
+	{
+		static struct gl_program_1 p1;
+		ctx->program_1 = &p1;
+
+		static const GLchar * const vertex_shader_source[] =
+		{
+			"attribute vec4 a_position;  "
+			"                            "
+			"void main() {               "
+			"  gl_Position = a_position; "
+			"}                           "
+		};
+
+		static const GLchar * const fragment_shader_source[] =
+		{
+			"precision highp float;               "
+			"                                     "
+			"void main() {                        "
+			"  gl_FragColor = vec4(0, 0, 0, 0.4); "
+			"}                                    "
+		};
+
+		p1.program = gl_create_program(vertex_shader_source, fragment_shader_source);
+	}
 }
 
 void gl_render(struct gl_ctx *ctx)
@@ -188,19 +236,40 @@ void gl_render(struct gl_ctx *ctx)
     glClearColor(0, 0, 0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
 
+    glUseProgram(ctx->program_0->program);
     {
-	    glUseProgram(ctx->program_0->program);
-
-	    GLfloat *p = &ctx->program_0->a_positions[0];
-	    *p -= 0.01;
-	    if (*p < -1)
-	    	*p = 0;
-
+		glVertexAttribPointer(ctx->program_0->a_position, 2, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)ctx->program_0->a_positions);
 		glEnableVertexAttribArray(ctx->program_0->a_position);
+
+		glVertexAttribPointer(ctx->program_0->a_color, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)ctx->program_0->a_colors);
 		glEnableVertexAttribArray(ctx->program_0->a_color);
 	    
 	    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
+
+	glUseProgram(ctx->program_1->program);
+	{
+		static const GLfloat a_positions[] =
+		{
+			-0.5,  0.5,  0.5,  0.5,
+			-0.5, -0.5,  0.5, -0.5,
+		};
+
+		GLint a_position = glGetAttribLocation(ctx->program_1->program, "a_position");
+		glVertexAttribPointer(a_position, 2, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)&a_positions[0]);
+		glEnableVertexAttribArray(a_position);
+
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	}
+}
+
+void ft_init(struct ft_ctx *ctx)
+{
+	FT_Error res = FT_Init_FreeType(&ctx->library);
+	assert(res == 0);
+
+	res = FT_New_Face(ctx->library, ctx->font_file, 0, &ctx->face);
+	assert(res == 0);
 }
 
 int main(int argc, char *argv[])
@@ -218,6 +287,9 @@ int main(int argc, char *argv[])
 
 	struct gl_ctx gl_ctx = { 0 };
 	gl_init(&gl_ctx);
+
+	static struct ft_ctx ft_ctx = { .font_file = "/usr/share/fonts/TTF/LiberationSans-Regular.ttf" };
+	ft_init(&ft_ctx);
 
 	struct timespec t1, t2, t3;
 	uint32_t frame_count = 0;
@@ -269,4 +341,3 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
-
