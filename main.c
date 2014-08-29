@@ -14,6 +14,8 @@
 
 #define NSEC		1000000000.0L
 #define FPS			60.0L
+
+#define FONT_FILE	"/usr/share/fonts/TTF/LiberationMono-Regular.ttf"
 #define FONT_SIZE	96
 
 struct egl_ctx
@@ -60,6 +62,7 @@ struct ft_ctx
 
 struct gl_ctx
 {
+	uint64_t frame;
 	struct gl_program_0 *program_0;
 	struct gl_program_1 *program_1;
 	struct gl_program_2 *program_2;
@@ -335,12 +338,13 @@ void gl_render(struct gl_ctx *ctx)
 
 		static int c = 0;
 		static char t[128];
-		++c;
+		if (!(ctx->frame++ % 2))
+			++c;
 		sprintf(t, "%d", c);
 
 		FT_GlyphSlot g = ctx->ft_ctx->face->glyph;
 		GLfloat sx = 2.0 / width, sy = 2.0 / height;
-		GLfloat x = -0.5, y = -0.5 + (FONT_SIZE * 0.75) * sy;
+		GLfloat x = -0.5 + (10 * sx), y = -0.5 + (10 * sy) + ((FONT_SIZE * 0.75) * sy);
 
 		glEnableVertexAttribArray(ctx->program_2->a_position);
 
@@ -411,7 +415,7 @@ int main(int argc, char *argv[])
 	struct gl_ctx gl_ctx = { 0 };
 	gl_init(&gl_ctx);
 
-	static struct ft_ctx ft_ctx = { .font_file = "/usr/share/fonts/TTF/LiberationSans-Regular.ttf" };
+	static struct ft_ctx ft_ctx = { .font_file = FONT_FILE };
 	ft_init(&ft_ctx);
 
 	FT_Set_Pixel_Sizes(ft_ctx.face, 0, FONT_SIZE);
