@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
 	struct timespec t1, t2, t3;
 	uint32_t frame_count = 0;
 
-	EGLint quit = 0;
+	EGLBoolean quit = EGL_FALSE;
 	while (!quit)
 	{
 		gl_render(&gl_ctx);
