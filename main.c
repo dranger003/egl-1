@@ -12,8 +12,9 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-#define NSEC	1000000000.0L
-#define FPS		60.0L
+#define NSEC		1000000000.0L
+#define FPS			60.0L
+#define FONT_SIZE	96
 
 struct egl_ctx
 {
@@ -42,10 +43,12 @@ struct gl_program_1
 	GLuint program;
 };
 
-struct gl_ctx
+struct gl_program_2
 {
-	struct gl_program_0 *program_0;
-	struct gl_program_1 *program_1;
+	GLuint program;
+	GLint a_position;
+	GLint u_texture;
+	GLint u_color;
 };
 
 struct ft_ctx
@@ -54,6 +57,25 @@ struct ft_ctx
 	FT_Face face;
 	const char * const font_file;
 };
+
+struct gl_ctx
+{
+	struct gl_program_0 *program_0;
+	struct gl_program_1 *program_1;
+	struct gl_program_2 *program_2;
+	struct ft_ctx *ft_ctx;
+};
+
+static int width = 1280;
+static int height = 360;
+
+void egl_native_window_resize(EGLint new_width, EGLint new_height)
+{
+	width = new_width;
+	height = new_height;
+
+    glViewport(0, 0, width, height);
+}
 
 EGLint egl_init(struct egl_ctx *ctx)
 {
@@ -91,10 +113,10 @@ EGLint egl_init(struct egl_ctx *ctx)
 	ctx->native_window = egl_native_window_create(
 		ctx->native_display,
 		"OpenGL ES 2.0",
-		(1900 - 1280) / 2,
-		(963 - 360) / 2,
-		1280,
-		360,
+		(1900 - width) / 2,
+		(963 - height) / 2,
+		width,
+		height,
 		visual_id
 	);
 	assert(ctx->native_window);
@@ -159,6 +181,7 @@ void gl_init(struct gl_ctx *ctx)
 {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
 	{
 		static struct gl_program_0 p0;
@@ -229,11 +252,45 @@ void gl_init(struct gl_ctx *ctx)
 
 		p1.program = gl_create_program(vertex_shader_source, fragment_shader_source);
 	}
+
+	{
+		static struct gl_program_2 p2;
+		ctx->program_2 = &p2;
+
+		static const GLchar * const vertex_shader_source[] =
+		{
+			"attribute vec4 a_position;                 "
+			"varying vec2 v_position;                   "
+			"                                           "
+			"void main() {                              "
+			"  gl_Position = vec4(a_position.xy, 0, 1); "
+			"  v_position = a_position.zw;              "
+			"}                                          "
+		};
+
+		static const GLchar * const fragment_shader_source[] =
+		{
+			"precision highp float;                                                        "
+			"varying vec2 v_position;                                                      "
+			"uniform sampler2D u_texture;                                                  "
+			"uniform vec4 u_color;                                                         "
+			"                                                                              "
+			"void main() {                                                                 "
+			"  gl_FragColor = vec4(1, 1, 1, texture2D(u_texture, v_position).a) * u_color; "
+			"}                                                                             "
+		};
+
+		p2.program = gl_create_program(vertex_shader_source, fragment_shader_source);
+
+		p2.a_position = glGetAttribLocation(p2.program, "a_position");
+		p2.u_texture = glGetUniformLocation(p2.program, "u_texture");
+		p2.u_color = glGetUniformLocation(p2.program, "u_color");
+	}
 }
 
 void gl_render(struct gl_ctx *ctx)
 {
-    glClearColor(0, 0, 0, 1.0);
+    glClearColor(1, 1, 1, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(ctx->program_0->program);
@@ -260,6 +317,72 @@ void gl_render(struct gl_ctx *ctx)
 		glEnableVertexAttribArray(a_position);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	}
+
+	glUseProgram(ctx->program_2->program);
+	{
+		static const GLfloat u_color[] = { 1, 1, 1, 1 };
+		glUniform4fv(ctx->program_2->u_color, 1, u_color);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, ctx->program_2->u_texture);
+		glUniform1i(ctx->program_2->u_texture, 0);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		static int c = 0;
+		static char t[128];
+		++c;
+		sprintf(t, "%d", c);
+
+		FT_GlyphSlot g = ctx->ft_ctx->face->glyph;
+		GLfloat sx = 2.0 / width, sy = 2.0 / height;
+		GLfloat x = -0.5, y = -0.5 + (FONT_SIZE * 0.75) * sy;
+
+		glEnableVertexAttribArray(ctx->program_2->a_position);
+
+		for (const char *p = &t[0]; *p; p++)
+		{
+			if (FT_Load_Char(ctx->ft_ctx->face, *p, FT_LOAD_RENDER))
+			{
+				assert(0);
+				continue;
+			}
+
+			glTexImage2D(
+				GL_TEXTURE_2D,
+				0,
+				GL_ALPHA,
+				g->bitmap.width,
+				g->bitmap.rows,
+				0,
+				GL_ALPHA,
+				GL_UNSIGNED_BYTE,
+				g->bitmap.buffer
+			);
+
+			GLfloat x2 = x + g->bitmap_left * sx;
+			GLfloat y2 = y - g->bitmap_top * sy;
+			GLfloat w = g->bitmap.width * sx;
+			GLfloat h = g->bitmap.rows * sy;
+
+			GLfloat a_positions[][4] =
+			{
+				{     x2,     -y2, 0, 0 },
+				{ x2 + w,     -y2, 1, 0 },
+				{     x2, -y2 - h, 0, 1 },
+				{ x2 + w, -y2 - h, 1, 1 },
+			};
+
+			glVertexAttribPointer(ctx->program_2->a_position, 4, GL_FLOAT, GL_FALSE, 0, (const GLvoid *)&a_positions[0][0]);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+			x += (g->advance.x >> 6) * sx;
+			y += (g->advance.y >> 6) * sy;
+		}
 	}
 }
 
@@ -290,6 +413,9 @@ int main(int argc, char *argv[])
 
 	static struct ft_ctx ft_ctx = { .font_file = "/usr/share/fonts/TTF/LiberationSans-Regular.ttf" };
 	ft_init(&ft_ctx);
+
+	FT_Set_Pixel_Sizes(ft_ctx.face, 0, FONT_SIZE);
+	gl_ctx.ft_ctx = &ft_ctx;
 
 	struct timespec t1, t2, t3;
 	uint32_t frame_count = 0;

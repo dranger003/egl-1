@@ -110,12 +110,12 @@ void egl_native_window_destroy(EGLNativeDisplayType display, EGLNativeWindowType
 	XDestroyWindow(_display, _window);
 	XFreeColormap(_display, xwa.colormap);
 }
-
+/*
 void egl_native_window_resize(EGLint width, EGLint height)
 {
 	glViewport(0, 0, width, height);
 }
-
+*/
 EGLBoolean egl_native_window_process_events(EGLNativeDisplayType display, EGLNativeWindowType window)
 {
 	Display *_display = (Display *)display;
